@@ -77,7 +77,7 @@ public class BufferPool {
         for (int index = 0; index < pageCache.size(); ++index) {
             Page page = pageCache.get(index);
             if (page == null) empty = index;
-            else if (page.getId() == pid) return page;
+            else if (page.getId().equals(pid)) return page;
         }
         if (empty == -1) throw new DbException("Too many requests");
         Page page = Database.getCatalog().getDatabaseFile(pid.getTableId()).readPage(pid);

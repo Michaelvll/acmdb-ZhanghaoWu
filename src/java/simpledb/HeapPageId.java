@@ -36,15 +36,17 @@ public class HeapPageId implements PageId {
         return pgNo;
     }
 
+
     /**
      * @return a hash code for this page, represented by the concatenation of
      *   the table number and the page number (needed if a PageId is used as a
      *   key in a hash table in the BufferPool, for example.)
      * @see BufferPool
      */
-    public int hashCode() {
-        // some code goes here
-        throw new UnsupportedOperationException("implement this");
+      public int hashCode() {
+        int result = tableId;
+        result = 31 * result + pgNo;
+        return result;
     }
 
     /**
@@ -55,8 +57,13 @@ public class HeapPageId implements PageId {
      *   ids are the same)
      */
     public boolean equals(Object o) {
-        // some code goes here
-        return false;
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        HeapPageId that = (HeapPageId) o;
+
+        if (tableId != that.tableId) return false;
+        return pgNo == that.pgNo;
     }
 
     /**
