@@ -1,3 +1,5 @@
-.idea/
-*/bin/
-*/dist/
+**/.idea/
+**/bin/
+**/dist/
+**/bin/
+**/dist/
