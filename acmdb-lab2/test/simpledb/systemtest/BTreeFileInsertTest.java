@@ -172,7 +172,7 @@ public class BTreeFileInsertTest extends SimpleDbTestBase {
 				null, null, 0);
 
 		// we will need more room in the buffer pool for this test
-		Database.resetBufferPool(500);		
+		Database.resetBufferPool(500);
 
 		// there should be 504 leaf pages + 1 internal node
 		assertEquals(505, bigFile.numPages());
