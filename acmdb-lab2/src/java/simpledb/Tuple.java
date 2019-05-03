@@ -116,4 +116,16 @@ public class Tuple implements Serializable {
         tupleDesc = td;
         fieldList = Arrays.asList(new Field[td.numFields()]);
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        Tuple tuple = (Tuple) o;
+
+        if (!tupleDesc.equals(tuple.tupleDesc)) return false;
+        if (!recordId.equals(tuple.recordId)) return false;
+        return fieldList.equals(tuple.fieldList);
+    }
 }
