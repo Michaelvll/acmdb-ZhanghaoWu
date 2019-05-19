@@ -128,4 +128,20 @@ public class Tuple implements Serializable {
         if (!recordId.equals(tuple.recordId)) return false;
         return fieldList.equals(tuple.fieldList);
     }
+
+
+    static public Tuple merge(Tuple tuple1, Tuple tuple2) {
+        TupleDesc schema1 = tuple1.getTupleDesc(), schema2 = tuple2.getTupleDesc();
+        TupleDesc joinSchema = TupleDesc.merge(schema1, schema2);
+        Tuple mergedTuple =new Tuple(joinSchema);
+
+        for (int i = 0; i < schema1.numFields(); ++i) {
+            mergedTuple.setField(i, tuple1.getField(i));
+        }
+
+        for (int i = 0; i < schema2.numFields(); ++i){
+            mergedTuple.setField(i+ schema1.numFields(), tuple2.getField(i));
+        }
+        return mergedTuple;
+    }
 }

@@ -316,7 +316,6 @@ public class Parser {
                 e.printStackTrace();
             }
         }
-
         return query;
     }
 

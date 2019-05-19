@@ -1,11 +1,23 @@
 package simpledb;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
 /**
  * Knows how to compute some aggregate over a set of StringFields.
  */
 public class StringAggregator implements Aggregator {
 
     private static final long serialVersionUID = 1L;
+
+    private int gbField, aField;
+    private Type gbFieldType;
+    private Op operator;
+    private TupleDesc schema;
+
+    private Map<Field, Integer> counts = new HashMap<>();
 
     /**
      * Aggregate constructor
@@ -18,6 +30,16 @@ public class StringAggregator implements Aggregator {
 
     public StringAggregator(int gbfield, Type gbfieldtype, int afield, Op what) {
         // some code goes here
+        if (what != Op.COUNT) throw new IllegalArgumentException();
+        this.gbField = gbfield;
+        this.gbFieldType = gbfieldtype;
+        this.aField = afield;
+        this.operator = what;
+        if (gbfield == Aggregator.NO_GROUPING) {
+            this.schema = new TupleDesc(new Type[] {Type.INT_TYPE}, new String[] {"aggregateValue"});
+        } else {
+            this.schema = new TupleDesc(new Type[] {gbFieldType, Type.INT_TYPE}, new String[]{"groupValue", "aggregateValue"});
+        }
     }
 
     /**
@@ -26,6 +48,10 @@ public class StringAggregator implements Aggregator {
      */
     public void mergeTupleIntoGroup(Tuple tup) {
         // some code goes here
+        Field groupField = gbField == Aggregator.NO_GROUPING? null : tup.getField(gbField);
+
+        Integer count = counts.getOrDefault(groupField, 0);
+        counts.put(groupField, count + 1);
     }
 
     /**
@@ -38,7 +64,20 @@ public class StringAggregator implements Aggregator {
      */
     public DbIterator iterator() {
         // some code goes here
-        throw new UnsupportedOperationException("please implement me for lab3");
+        ArrayList<Tuple> tuples = new ArrayList<>();
+        for (Map.Entry<Field, Integer> entry : counts.entrySet()) {
+            Field group = entry.getKey();
+            Integer value = entry.getValue();
+            Tuple tuple = new Tuple(schema);
+            if (gbField == Aggregator.NO_GROUPING) {
+                tuple.setField(0, new IntField(value));
+            } else {
+                tuple.setField(0, group);
+                tuple.setField(1, new IntField(value));
+            }
+            tuples.add(tuple);
+        }
+        return new TupleIterator(schema, tuples);
     }
 
 }

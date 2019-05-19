@@ -191,7 +191,11 @@ public class TupleDesc implements Serializable {
     public int hashCode() {
         // If you want to use TupleDesc as keys for HashMap, implement this so
         // that equal objects have equals hashCode() results
-        throw new UnsupportedOperationException("unimplemented");
+        int result = 0;
+        for (int i = 0; i < numFields(); ++i) {
+            result += getFieldType(i).hashCode() * 31;
+        }
+        return result;
     }
 
     /**
