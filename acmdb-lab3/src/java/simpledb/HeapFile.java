@@ -157,34 +157,38 @@ public class HeapFile implements DbFile {
 
             @Override
             public void open() throws DbException, TransactionAbortedException {
-                currentPid = 0;
-                PageId pageId = new HeapPageId(getId(), currentPid);
-                HeapPage currentPage = (HeapPage) Database.getBufferPool().getPage(tid, pageId, Permissions.READ_WRITE);
-                tupleIterator = currentPage.iterator();
+                reset();
             }
 
             @Override
             public boolean hasNext() throws DbException, TransactionAbortedException {
                 if (tupleIterator == null) return false;
-                while (!tupleIterator.hasNext() && currentPid < numPages() - 1) {
-                    ++currentPid;
-                    PageId pageId = new HeapPageId(getId(), currentPid);
-                    HeapPage currentPage = (HeapPage) Database.getBufferPool().getPage(tid, pageId, Permissions.READ_WRITE);
-                    tupleIterator = currentPage.iterator();
-                }
                 return tupleIterator.hasNext();
             }
 
             @Override
             public Tuple next() throws DbException, TransactionAbortedException, NoSuchElementException {
                 if (tupleIterator == null) throw new NoSuchElementException();
-                return tupleIterator.next();
+
+                Tuple tup = tupleIterator.next();
+                while (!tupleIterator.hasNext() && currentPid < numPages() - 1) {
+                    ++currentPid;
+                    PageId pageId = new HeapPageId(getId(), currentPid);
+                    HeapPage currentPage = (HeapPage) Database.getBufferPool().getPage(tid, pageId, Permissions.READ_ONLY);
+                    tupleIterator = currentPage.iterator();
+                }
+                return tup;
             }
 
             @Override
             public void rewind() throws DbException, TransactionAbortedException {
-                close();
-                open();
+                reset();
+            }
+            private void reset() throws DbException, TransactionAbortedException {
+                currentPid = 0;
+                PageId pageId = new HeapPageId(getId(), currentPid);
+                HeapPage currentPage = (HeapPage) Database.getBufferPool().getPage(tid, pageId, Permissions.READ_ONLY);
+                tupleIterator = currentPage.iterator();
             }
 
             @Override

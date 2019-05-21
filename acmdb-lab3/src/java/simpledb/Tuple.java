@@ -130,9 +130,7 @@ public class Tuple implements Serializable {
     }
 
 
-    static public Tuple merge(Tuple tuple1, Tuple tuple2) {
-        TupleDesc schema1 = tuple1.getTupleDesc(), schema2 = tuple2.getTupleDesc();
-        TupleDesc joinSchema = TupleDesc.merge(schema1, schema2);
+    static public Tuple merge(Tuple tuple1, Tuple tuple2, TupleDesc schema1, TupleDesc schema2, TupleDesc joinSchema) {
         Tuple mergedTuple =new Tuple(joinSchema);
 
         for (int i = 0; i < schema1.numFields(); ++i) {

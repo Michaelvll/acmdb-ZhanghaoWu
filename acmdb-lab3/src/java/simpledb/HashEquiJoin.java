@@ -1,6 +1,9 @@
 package simpledb;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -12,26 +15,26 @@ public class HashEquiJoin extends Operator {
 
     private JoinPredicate predicate;
     private DbIterator child1, child2;
-    private TupleDesc joinSchema;
+    private TupleDesc schema1, schema2, joinSchema;
     private Map<Field, ArrayList<Tuple>> hashBlocks = new ConcurrentHashMap<>();
     private Tuple tuple1;
+
     /**
      * Constructor. Accepts to children to join and the predicate to join them
      * on
-     * 
-     * @param p
-     *            The predicate to use to join the children
-     * @param child1
-     *            Iterator for the left(outer) relation to join
-     * @param child2
-     *            Iterator for the right(inner) relation to join
+     *
+     * @param p      The predicate to use to join the children
+     * @param child1 Iterator for the left(outer) relation to join
+     * @param child2 Iterator for the right(inner) relation to join
      */
     public HashEquiJoin(JoinPredicate p, DbIterator child1, DbIterator child2) {
         // some code goes here
         this.predicate = p;
         this.child1 = child1;
         this.child2 = child2;
-        this.joinSchema = TupleDesc.merge(child1.getTupleDesc(), child2.getTupleDesc());
+        this.schema1 = child1.getTupleDesc();
+        this.schema2 = child2.getTupleDesc();
+        this.joinSchema = TupleDesc.merge(schema1, schema2);
 
     }
 
@@ -44,19 +47,17 @@ public class HashEquiJoin extends Operator {
         // some code goes here
         return joinSchema;
     }
-    
-    public String getJoinField1Name()
-    {
+
+    public String getJoinField1Name() {
         // some code goes here
-	    return child1.getTupleDesc().getFieldName(predicate.getField1());
+        return schema1.getFieldName(predicate.getField1());
     }
 
-    public String getJoinField2Name()
-    {
+    public String getJoinField2Name() {
         // some code goes here
-        return child2.getTupleDesc().getFieldName(predicate.getField2());
+        return schema2.getFieldName(predicate.getField2());
     }
-    
+
     public void open() throws DbException, NoSuchElementException,
             TransactionAbortedException {
         // some code goes here
@@ -101,7 +102,7 @@ public class HashEquiJoin extends Operator {
      * <p>
      * For example, if one tuple is {1,2,3} and the other tuple is {1,5,6},
      * joined on equality of the first column, then this returns {1,2,3,1,5,6}.
-     * 
+     *
      * @return The next matching tuple.
      * @see JoinPredicate#filter
      */
@@ -110,7 +111,7 @@ public class HashEquiJoin extends Operator {
 
         if (listIt != null && listIt.hasNext()) {
             Tuple tuple2 = listIt.next();
-            return Tuple.merge(tuple1, tuple2);
+            return Tuple.merge(tuple1, tuple2, schema1, schema2, joinSchema);
         }
         while (child1.hasNext()) {
             tuple1 = child1.next();
@@ -126,7 +127,7 @@ public class HashEquiJoin extends Operator {
     @Override
     public DbIterator[] getChildren() {
         // some code goes here
-        return new DbIterator[] {child1,child2};
+        return new DbIterator[]{child1, child2};
     }
 
     @Override
@@ -135,5 +136,5 @@ public class HashEquiJoin extends Operator {
         child1 = children[0];
         child2 = children[1];
     }
-    
+
 }

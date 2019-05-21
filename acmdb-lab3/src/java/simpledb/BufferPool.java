@@ -29,6 +29,7 @@ public class BufferPool {
     private final int pageLimit;
     private Map<PageId, Page> pageCache;
     private Map<PageId, Integer> LRUCount;
+    private int counter = 0;
 
     /**
      * Creates a BufferPool that caches up to numPages pages.
@@ -57,8 +58,7 @@ public class BufferPool {
     }
 
     private void LRUUpdate(PageId pid) {
-        LRUCount.put(pid, 2 * pageLimit);
-        LRUCount.replaceAll((k,v) -> v != 0? v - 1:0);
+        LRUCount.put(pid, counter++);
     }
 
     /**
@@ -89,6 +89,9 @@ public class BufferPool {
             pageCache.put(pid, page);
         }
         page = pageCache.get(pid);
+        if (perm == Permissions.READ_WRITE) {
+            page.markDirty(true, tid);
+        }
         LRUUpdate(pid);
         return page;
     }
@@ -258,10 +261,15 @@ public class BufferPool {
         // some code goes here
         // not necessary for lab1
         Map.Entry<PageId, Integer> lru = null;
+        Map.Entry<PageId, Integer> lru_write = null;
         for (Map.Entry<PageId, Integer> entry: LRUCount.entrySet()) {
-            if (lru == null) lru = entry;
-            else if (lru.getValue() > entry.getValue()) lru = entry;
+            if (pageCache.get(entry.getKey()).isDirty() != null) {
+                if (lru_write == null || lru_write.getValue() < entry.getValue()) lru_write = entry;
+                continue;
+            }
+            if (lru == null || lru.getValue() < entry.getValue()) lru = entry;
         }
+        if (lru == null) lru = lru_write;
         PageId evictPageId = lru.getKey();
         try {
             flushPage(evictPageId);
