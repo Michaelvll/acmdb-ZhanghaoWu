@@ -264,7 +264,7 @@ public class BufferPool {
         Map.Entry<PageId, Integer> lru_write = null;
         for (Map.Entry<PageId, Integer> entry: LRUCount.entrySet()) {
             if (pageCache.get(entry.getKey()).isDirty() != null) {
-                if (lru_write == null || lru_write.getValue() < entry.getValue()) lru_write = entry;
+                if (lru_write == null || lru_write.getValue() > entry.getValue()) lru_write = entry;
                 continue;
             }
             if (lru == null || lru.getValue() > entry.getValue()) lru = entry;
