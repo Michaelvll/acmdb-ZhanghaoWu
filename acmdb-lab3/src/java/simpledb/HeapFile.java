@@ -163,6 +163,12 @@ public class HeapFile implements DbFile {
             @Override
             public boolean hasNext() throws DbException, TransactionAbortedException {
                 if (tupleIterator == null) return false;
+                while (!tupleIterator.hasNext() && currentPid < numPages() - 1) {
+                    ++currentPid;
+                    PageId pageId = new HeapPageId(getId(), currentPid);
+                    HeapPage currentPage = (HeapPage) Database.getBufferPool().getPage(tid, pageId, Permissions.READ_ONLY);
+                    tupleIterator = currentPage.iterator();
+                }
                 return tupleIterator.hasNext();
             }
 
@@ -171,12 +177,7 @@ public class HeapFile implements DbFile {
                 if (tupleIterator == null) throw new NoSuchElementException();
 
                 Tuple tup = tupleIterator.next();
-                while (!tupleIterator.hasNext() && currentPid < numPages() - 1) {
-                    ++currentPid;
-                    PageId pageId = new HeapPageId(getId(), currentPid);
-                    HeapPage currentPage = (HeapPage) Database.getBufferPool().getPage(tid, pageId, Permissions.READ_ONLY);
-                    tupleIterator = currentPage.iterator();
-                }
+
                 return tup;
             }
 

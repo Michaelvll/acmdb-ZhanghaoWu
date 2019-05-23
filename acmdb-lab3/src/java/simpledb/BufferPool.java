@@ -193,7 +193,7 @@ public class BufferPool {
                 evictPage();
             }
             page.markDirty(true, tid);
-            pageCache.put(page.getId(), page);
+            pageCache.put(pid, page);
             LRUUpdate(pid);
         }
     }
@@ -267,7 +267,7 @@ public class BufferPool {
                 if (lru_write == null || lru_write.getValue() < entry.getValue()) lru_write = entry;
                 continue;
             }
-            if (lru == null || lru.getValue() < entry.getValue()) lru = entry;
+            if (lru == null || lru.getValue() > entry.getValue()) lru = entry;
         }
         if (lru == null) lru = lru_write;
         PageId evictPageId = lru.getKey();
