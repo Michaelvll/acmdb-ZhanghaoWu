@@ -230,14 +230,11 @@ public class JoinOptimizer {
         for (int i = 1; i <= joins.size(); ++i) {
             Set<Set<LogicalJoinNode>> enumerator = enumerateSubsets(joins, i);
             for (Set<LogicalJoinNode> subset : enumerator) {
-                Double bestCostSoFar = Double.MAX_VALUE;
                 bestPlan = null;
                 for (LogicalJoinNode joinToRemove : subset) {
-                    CostCard plan = computeCostAndCardOfSubplan(stats, filterSelectivities, joinToRemove, subset, bestCostSoFar, planCache);
-                    if (plan != null) {
-                        bestCostSoFar = plan.cost;
-                        bestPlan = plan;
-                    }
+                    CostCard plan = computeCostAndCardOfSubplan(stats, filterSelectivities, joinToRemove, subset,
+                            bestPlan == null ? Double.MAX_VALUE : bestPlan.cost, planCache);
+                    if (plan != null) bestPlan = plan;
                 }
                 if (bestPlan != null)
                     planCache.addPlan(subset, bestPlan.cost, bestPlan.card, bestPlan.plan);
