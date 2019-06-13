@@ -3,6 +3,7 @@ package simpledb;
 import java.io.*;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * BufferPool manages the reading and writing of pages into memory from
@@ -31,6 +32,54 @@ public class BufferPool {
     private Map<PageId, Integer> LRUCount;
     private int counter = 0;
 
+    private class PageLock {
+        private HashSet<TransactionId> sharedLock = new HashSet<>();
+        private TransactionId exclusiveLock = null;
+        public PageId pageId;
+
+        PageLock(PageId pid) {
+            pageId = pid;
+        }
+
+        boolean requireLock(Permissions perm, TransactionId tid) {
+            boolean flag = false;
+            if (perm == Permissions.READ_ONLY) flag = requireShared(tid);
+            else if (perm == Permissions.READ_WRITE) flag = requireExclusive(tid);
+            return flag;
+        }
+
+        private boolean requireShared(TransactionId tid) {
+            if (exclusiveLock != null) return exclusiveLock.equals(tid);
+            sharedLock.add(tid);
+            return true;
+        }
+
+        private boolean requireExclusive(TransactionId tid) {
+            if (exclusiveLock != null) return exclusiveLock.equals(tid);
+            if (sharedLock.size() > 1) return false;
+            if (sharedLock.isEmpty() || sharedLock.contains(tid)) {
+                exclusiveLock = tid;
+                sharedLock.clear();
+                return true;
+            }
+            return false;
+        }
+
+        void releaseLock(TransactionId tid) {
+            if (exclusiveLock.equals(tid)) exclusiveLock = null;
+            else sharedLock.remove(tid);
+        }
+
+        boolean holdsLock(TransactionId tid) {
+            return exclusiveLock.equals(tid) || sharedLock.contains(tid);
+        }
+
+
+    }
+
+    private ConcurrentHashMap<PageId, PageLock> lockManager;
+    private ConcurrentHashMap<TransactionId, HashSet<PageId>> transactionLockHolder;
+
     /**
      * Creates a BufferPool that caches up to numPages pages.
      *
@@ -41,6 +90,8 @@ public class BufferPool {
         pageLimit = numPages;
         pageCache = new HashMap<>();
         LRUCount = new HashMap<>();
+        lockManager = new ConcurrentHashMap<>();
+        transactionLockHolder = new ConcurrentHashMap<>();
     }
     
     public static int getPageSize() {
@@ -79,6 +130,14 @@ public class BufferPool {
     public  Page getPage(TransactionId tid, PageId pid, Permissions perm)
         throws TransactionAbortedException, DbException {
         // some code goes here
+        lockManager.putIfAbsent(pid, new PageLock(pid));
+        PageLock pageLock = lockManager.get(pid);
+        boolean requiredLock = false;
+        while (!requiredLock) {
+            synchronized (pageLock) {
+                requiredLock = pageLock.requireLock(perm, tid);
+            }
+        }
 
         Page page;
         if (!pageCache.containsKey(pid)) {
@@ -108,6 +167,11 @@ public class BufferPool {
     public  void releasePage(TransactionId tid, PageId pid) {
         // some code goes here
         // not necessary for lab1|lab2
+
+        PageLock pageLock = lockManager.get(pid);
+        synchronized (pageLock){
+            pageLock.releaseLock(tid);
+        }
     }
 
     /**
@@ -124,7 +188,12 @@ public class BufferPool {
     public boolean holdsLock(TransactionId tid, PageId p) {
         // some code goes here
         // not necessary for lab1|lab2
-        return false;
+        boolean flag = false;
+        PageLock pageLock = lockManager.get(p);
+        synchronized (pageLock) {
+            flag = pageLock.holdsLock(tid);
+        }
+        return flag;
     }
 
     /**
