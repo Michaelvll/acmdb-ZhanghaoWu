@@ -123,9 +123,9 @@ public class HeapFile implements DbFile {
         HeapPage page;
         for (int i = 0; i < numPages(); ++i) {
             pid = new HeapPageId(getId(), i);
-            page = (HeapPage) Database.getBufferPool().getPage(tid, pid, Permissions.READ_WRITE);
+            page = (HeapPage) Database.getBufferPool().getPage(tid, pid, Permissions.READ_ONLY);
             if (page.getNumEmptySlots() > 0) {
-//                page = (HeapPage) Database.getBufferPool().getPage(tid, pid, Permissions.READ_WRITE);
+                page = (HeapPage) Database.getBufferPool().getPage(tid, pid, Permissions.READ_WRITE);
                 page.insertTuple(t);
                 return new ArrayList<Page>(Collections.singletonList(page));
             }

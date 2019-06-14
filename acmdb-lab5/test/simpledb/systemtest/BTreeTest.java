@@ -89,22 +89,22 @@ public class BTreeTest extends SimpleDbTestBase {
     @Test public void testBigFile() throws Exception {
     	// For this test we will decrease the size of the Buffer Pool pages
     	BufferPool.setPageSize(1024);
-    	
+
     	// This should create a B+ tree with a packed second tier of internal pages
 		// and packed third tier of leaf pages
     	System.out.println("Creating large random B+ tree...");
     	ArrayList<ArrayList<Integer>> tuples = new ArrayList<ArrayList<Integer>>();
 		BTreeFile bf = BTreeUtility.createRandomBTreeFile(2, 31000,
 				null, tuples, 0);
-		
+
 		// we will need more room in the buffer pool for this test
 		Database.resetBufferPool(500);
-    	
+
     	ArrayBlockingQueue<ArrayList<Integer>> insertedTuples = new ArrayBlockingQueue<ArrayList<Integer>>(100000);
 		insertedTuples.addAll(tuples);
 		assertEquals(31000, insertedTuples.size());
 		int size = insertedTuples.size();
-		
+
 		// now insert some random tuples
 		System.out.println("Inserting tuples...");
     	ArrayList<BTreeInserter> insertThreads = new ArrayList<BTreeInserter>();
@@ -115,16 +115,16 @@ public class BTreeTest extends SimpleDbTestBase {
 			// more time to avoid too many deadlock situations
 			Thread.sleep(r.nextInt(POLL_INTERVAL));
 		}
-		
+
 		for(int i = 0; i < 800; i++) {
 			BTreeInserter bi = startInserter(bf, getRandomTupleData(), insertedTuples);
 			insertThreads.add(bi);
 		}
-		
+
 		// wait for all threads to finish
-		waitForInserterThreads(insertThreads);	
+		waitForInserterThreads(insertThreads);
 		assertTrue(insertedTuples.size() > size);
-		
+
 		// now insert and delete tuples at the same time
 		System.out.println("Inserting and deleting tuples...");
     	ArrayList<BTreeDeleter> deleteThreads = new ArrayList<BTreeDeleter>();
@@ -133,33 +133,33 @@ public class BTreeTest extends SimpleDbTestBase {
     		BTreeDeleter bd = startDeleter(bf, insertedTuples);
     		deleteThreads.add(bd);
 		}
-		
+
 		// wait for all threads to finish
 		waitForInserterThreads(insertThreads);
 		waitForDeleterThreads(deleteThreads);
 		int numPages = bf.numPages();
 		size = insertedTuples.size();
-		
+
 		// now delete a bunch of tuples
 		System.out.println("Deleting tuples...");
 		for(int i = 0; i < 10; i++) {
 	    	for(BTreeDeleter thread : deleteThreads) {
 				thread.rerun(bf, insertedTuples);
 			}
-			
+
 			// wait for all threads to finish
 	    	waitForDeleterThreads(deleteThreads);
 		}
 		assertTrue(insertedTuples.size() < size);
 		size = insertedTuples.size();
-		
+
 		// now insert a bunch of random tuples again
 		System.out.println("Inserting tuples...");
 		for(int i = 0; i < 10; i++) {
 	    	for(BTreeInserter thread : insertThreads) {
 				thread.rerun(bf, getRandomTupleData(), insertedTuples);
 			}
-		
+
 			// wait for all threads to finish
 	    	waitForInserterThreads(insertThreads);
 		}
@@ -167,15 +167,15 @@ public class BTreeTest extends SimpleDbTestBase {
 		size = insertedTuples.size();
 		// we should be reusing the deleted pages
 		assertTrue(bf.numPages() < numPages + 20);
-		
+
 		// kill all the threads
 		insertThreads = null;
 		deleteThreads = null;
-		
+
 		ArrayList<ArrayList<Integer>> tuplesList = new ArrayList<ArrayList<Integer>>();
 		tuplesList.addAll(insertedTuples);
 		TransactionId tid = new TransactionId();
-		
+
 		// First look for random tuples and make sure we can find them
 		System.out.println("Searching for tuples...");
 		for(int i = 0; i < 10000; i++) {
@@ -196,7 +196,7 @@ public class BTreeTest extends SimpleDbTestBase {
 			assertTrue(found);
 			it.close();
 		}
-		
+
 		// now make sure all the tuples are in order and we have the right number
 		System.out.println("Performing sanity checks...");
     	DbFileIterator it = bf.iterator(tid);
@@ -214,10 +214,10 @@ public class BTreeTest extends SimpleDbTestBase {
 		it.close();
 		assertEquals(count, tuplesList.size());
 		Database.getBufferPool().transactionComplete(tid);
-		
+
 		// set the page size back
 		BufferPool.resetPageSize();
-		
+
     }
 
     /** Make test compatible with older version of ant. */
