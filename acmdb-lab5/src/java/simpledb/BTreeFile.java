@@ -874,7 +874,7 @@ public class BTreeFile implements DbFile {
      * @see #deleteParentEntry(TransactionId, HashMap, BTreePage, BTreeInternalPage, BTreeEntry)
      * @see #updateParentPointers(TransactionId, HashMap, BTreeInternalPage)
      */
-    protected void mergeInternalPages(TransactionId tid, HashMap<PageId, Page> dirtypages,
+     protected void mergeInternalPages(TransactionId tid, HashMap<PageId, Page> dirtypages,
                                       BTreeInternalPage leftPage, BTreeInternalPage rightPage, BTreeInternalPage parent, BTreeEntry parentEntry)
             throws DbException, IOException, TransactionAbortedException {
 

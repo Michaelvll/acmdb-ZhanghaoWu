@@ -34,7 +34,7 @@ public class BufferPool {
 
     private final int pageLimit;
     private ConcurrentHashMap<PageId, Page> pageCache;
-    private ConcurrentHashMap<PageId, Integer> LRUCount;
+//    private ConcurrentHashMap<PageId, Integer> LRUCount;
     private int counter = 0;
 
     private class PageLock {
@@ -75,7 +75,7 @@ public class BufferPool {
         }
 
         boolean holdsLock(TransactionId tid) {
-            return exclusiveLock.equals(tid) || sharedLock.contains(tid);
+            return tid.equals(exclusiveLock) || sharedLock.contains(tid);
         }
 
         boolean exclusive() {
@@ -84,7 +84,10 @@ public class BufferPool {
 
         Set<TransactionId> relatedTransactions() {
             Set<TransactionId> transactionIds = new HashSet<>(sharedLock);
-            if (exclusiveLock != null) transactionIds.add(exclusiveLock);
+            if (exclusiveLock != null) {
+                assert sharedLock.isEmpty();
+                transactionIds.add(exclusiveLock);
+            }
             return transactionIds;
         }
 
@@ -92,13 +95,13 @@ public class BufferPool {
 
     private class DependencyGraph {
         // The edges are directed. Each of the edge is pointed to owner from requestor
-        private HashMap<TransactionId, HashSet<TransactionId>> edges = new HashMap<>();
+        private ConcurrentHashMap<TransactionId, HashSet<TransactionId>> edges = new ConcurrentHashMap<>();
 
-        synchronized boolean updateEdges(TransactionId requestor, PageId pid) {
+        synchronized void updateEdges(TransactionId requestor, PageId pid) {
             edges.putIfAbsent(requestor, new HashSet<>());
             HashSet<TransactionId> requestEdges = edges.get(requestor);
             requestEdges.clear();
-            if (pid == null) return false;
+            if (pid == null) return;
 
             Set<TransactionId> owners;
             synchronized (lockManager.get(pid)) {
@@ -106,12 +109,9 @@ public class BufferPool {
             }
 
             requestEdges.addAll(owners);
-            boolean hasCycle = findCycle(requestor);
-            if (hasCycle) edges.remove(requestor);
-            return hasCycle;
         }
 
-        private boolean findCycle(TransactionId start) {
+        synchronized boolean findCycle(TransactionId start) {
             HashSet<TransactionId> visited = new HashSet<>();
             Queue<TransactionId> bfsQueue = new LinkedList<>();
             bfsQueue.add(start);
@@ -145,7 +145,7 @@ public class BufferPool {
         // some code goes here
         pageLimit = numPages;
         pageCache = new ConcurrentHashMap<>();
-        LRUCount = new ConcurrentHashMap<>();
+//        LRUCount = new ConcurrentHashMap<>();
         lockManager = new ConcurrentHashMap<>();
         transactionLockHolder = new ConcurrentHashMap<>();
         dependencyGraph = new DependencyGraph();
@@ -165,9 +165,9 @@ public class BufferPool {
         BufferPool.pageSize = PAGE_SIZE;
     }
 
-    private void LRUUpdate(PageId pid) {
-        LRUCount.put(pid, counter++);
-    }
+//    private void LRUUpdate(PageId pid) {
+//        LRUCount.put(pid, counter++);
+//    }
 
     /**
      * Retrieve the specified page with the associated permissions.
@@ -194,7 +194,9 @@ public class BufferPool {
         }
 
         while (!requiredLock) {
-            if (dependencyGraph.updateEdges(tid, pid)) {
+            Thread.yield();
+            dependencyGraph.updateEdges(tid, pid);
+            if (dependencyGraph.findCycle(tid)) {
                 throw new TransactionAbortedException();
             }
             Thread.yield();
@@ -205,8 +207,7 @@ public class BufferPool {
         dependencyGraph.updateEdges(tid, null);
 
         transactionLockHolder.putIfAbsent(tid, new HashSet<>());
-        Set<PageId> lockedPages = transactionLockHolder.get(tid);
-        lockedPages.add(pid);
+        transactionLockHolder.get(tid).add(pid);
 
         Page page;
         if (!pageCache.containsKey(pid)) {
@@ -217,10 +218,7 @@ public class BufferPool {
             pageCache.put(pid, page);
         }
         page = pageCache.get(pid);
-//        if (perm == Permissions.READ_WRITE) {
-//            page.markDirty(true, tid);
-//        }
-        LRUUpdate(pid);
+//        LRUUpdate(pid);
         return page;
     }
 
@@ -278,30 +276,17 @@ public class BufferPool {
         // some code goes here
         // not necessary for lab1|lab2
         Set<PageId> lockedPages = transactionLockHolder.get(tid);
+        transactionLockHolder.remove(tid);
         if (lockedPages == null) return;
         for (PageId pid : lockedPages) {
-            if (lockManager.get(pid).exclusive()) {
-                Page page = pageCache.get(pid);
-                if (page != null && page.isDirty() != null) {
-                    assert page.isDirty().equals(tid);
-                    if (commit) {
-                        // write back
-                        flushPage(pid);
-                    } else {
-                        discardPage(pid);
-//                        page = Database.getCatalog().getDatabaseFile(pid.getTableId()).readPage(pid);
-//                        page.markDirty(false, null);
-//
-//                        pageCache.put(pid, page);
-//                        LRUUpdate(pid);
-                    }
-                }
+            if (pageCache.containsKey(pid)) {
+                if (commit) flushPage(pid);
+                else if (lockManager.get(pid).exclusive()) discardPage(pid);
             }
             synchronized (lockManager.get(pid)) {
                 lockManager.get(pid).releaseLock(tid);
             }
         }
-        transactionLockHolder.remove(tid);
     }
 
     /**
@@ -359,7 +344,7 @@ public class BufferPool {
             }
             page.markDirty(true, tid);
             pageCache.put(pid, page);
-            LRUUpdate(pid);
+//            LRUUpdate(pid);
         }
     }
 
@@ -424,11 +409,9 @@ public class BufferPool {
         // not necessary for lab1
         for (Map.Entry<PageId, Page> entry : pageCache.entrySet()) {
             PageId pid = entry.getKey();
-            synchronized (pageCache.get(pid)) {
-                if (pageCache.get(pid).isDirty() == null) {
-                    evict(pid);
-                    return;
-                }
+            if (pageCache.get(pid).isDirty() == null) {
+                evict(pid);
+                return;
             }
         }
         throw new DbException("None page can be evicted for NO STEAL POLICY!");
@@ -445,6 +428,6 @@ public class BufferPool {
 
     private void remove(PageId evictPageId) {
         pageCache.remove(evictPageId);
-        LRUCount.remove(evictPageId);
+//        LRUCount.remove(evictPageId);
     }
 }
