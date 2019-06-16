@@ -1,7 +1,5 @@
 package simpledb;
 
-import com.sun.webkit.PageCache;
-
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -34,7 +32,7 @@ public class BufferPool {
 
     private final int pageLimit;
     private ConcurrentHashMap<PageId, Page> pageCache;
-//    private ConcurrentHashMap<PageId, Integer> LRUCount;
+    //    private ConcurrentHashMap<PageId, Integer> LRUCount;
     private int counter = 0;
 
     private class PageLock {
@@ -190,7 +188,7 @@ public class BufferPool {
         lockManager.putIfAbsent(pid, new PageLock(pid));
         boolean requiredLock;
         synchronized (lockManager.get(pid)) {
-             requiredLock = lockManager.get(pid).requireLock(perm, tid);
+            requiredLock = lockManager.get(pid).requireLock(perm, tid);
         }
 
         while (!requiredLock) {
@@ -209,16 +207,15 @@ public class BufferPool {
         transactionLockHolder.putIfAbsent(tid, new HashSet<>());
         transactionLockHolder.get(tid).add(pid);
 
-        Page page;
-        if (!pageCache.containsKey(pid)) {
+        Page page = pageCache.get(pid);
+        if (page == null) {
             while (pageCache.size() >= pageLimit) {
                 evictPage();
             }
             page = Database.getCatalog().getDatabaseFile(pid.getTableId()).readPage(pid);
             pageCache.put(pid, page);
+            page.setBeforeImage();
         }
-        page = pageCache.get(pid);
-//        LRUUpdate(pid);
         return page;
     }
 
@@ -279,9 +276,18 @@ public class BufferPool {
         transactionLockHolder.remove(tid);
         if (lockedPages == null) return;
         for (PageId pid : lockedPages) {
-            if (pageCache.containsKey(pid)) {
-                if (commit) flushPage(pid);
-                else if (lockManager.get(pid).exclusive()) discardPage(pid);
+            Page page = pageCache.get(pid);
+            if (page != null && lockManager.get(pid).exclusive()) {
+                if (commit) {
+                    if (page.isDirty() != null) {
+                        flushPage(pid);
+                        page.setBeforeImage();
+                    }
+                } else {
+                    assert page.getBeforeImage() != null;
+                    pageCache.put(pid, page.getBeforeImage());
+//                        discardPage(pid);
+                }
             }
             synchronized (lockManager.get(pid)) {
                 lockManager.get(pid).releaseLock(tid);
@@ -304,7 +310,7 @@ public class BufferPool {
      * @param tableId the table to add the tuple to
      * @param t       the tuple to add
      */
-      public void insertTuple(TransactionId tid, int tableId, Tuple t)
+    public void insertTuple(TransactionId tid, int tableId, Tuple t)
             throws DbException, IOException, TransactionAbortedException {
         // some code goes here
         // not necessary for lab1
@@ -344,7 +350,6 @@ public class BufferPool {
             }
             page.markDirty(true, tid);
             pageCache.put(pid, page);
-//            LRUUpdate(pid);
         }
     }
 
@@ -373,7 +378,6 @@ public class BufferPool {
     public synchronized void discardPage(PageId pid) {
         // some code goes here
         // not necessary for lab1
-        if (!pageCache.containsKey(pid)) return;
         remove(pid);
     }
 
@@ -409,9 +413,11 @@ public class BufferPool {
         // not necessary for lab1
         for (Map.Entry<PageId, Page> entry : pageCache.entrySet()) {
             PageId pid = entry.getKey();
-            if (pageCache.get(pid).isDirty() == null) {
-                evict(pid);
-                return;
+            synchronized (pageCache.get(pid)) {
+                if (pageCache.get(pid).isDirty() == null) {
+                    evict(pid);
+                    return;
+                }
             }
         }
         throw new DbException("None page can be evicted for NO STEAL POLICY!");
@@ -428,6 +434,5 @@ public class BufferPool {
 
     private void remove(PageId evictPageId) {
         pageCache.remove(evictPageId);
-//        LRUCount.remove(evictPageId);
     }
 }
